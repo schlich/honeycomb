@@ -1,6 +1,6 @@
 # `honeycomb sidebar` and `honeycomb sessions` on a fixture of the Claude
 # desktop app's sidebar and sessions:
-#   nu --no-config-file runtime/tests.nu runtime/honeycomb.nu AREAS.json runtime/hub/server.nu HTTP-NU
+#   nu --no-config-file runtime/tests.nu runtime/honeycomb.nu AREAS.json runtime/hub/server.nu HTTP-NU --mcp runtime/mcp.nu
 # `nix flake check` runs it with the areas from nix/default.nix.
 
 def expect [name: string, actual: any, expected: any] {
@@ -58,6 +58,36 @@ def hub-tests [server: path, http_nu: path, home: path] {
   ] | flatten
 }
 
+# honeycomb-mcp on a session's worth of requests, with the fixture in the
+# app's own place so its tools find it.
+def mcp-tests [mcp: path, script: path, areas: path, home: path, expected_sessions: list] {
+  let requests = [
+    { jsonrpc: "2.0", id: 1, method: initialize, params: { protocolVersion: "2025-03-26", capabilities: {}, clientInfo: { name: test, version: "0" } } }
+    { jsonrpc: "2.0", method: "notifications/initialized" }
+    { jsonrpc: "2.0", id: 2, method: "tools/list" }
+    { jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: sessions, arguments: {} } }
+    { jsonrpc: "2.0", id: 4, method: "tools/call", params: { name: census, arguments: { directory: ($home | path join nowhere) } } }
+    { jsonrpc: "2.0", id: 5, method: "tools/call", params: { name: nope } }
+    { jsonrpc: "2.0", id: 6, method: bogus }
+  ] | each { to json --raw } | append "not json" | str join "\n"
+  let run = (with-env { HONEYCOMB_SCRIPT: $script, HONEYCOMB_AREAS: $areas } { $requests | ^nu --no-config-file $mcp | complete })
+  if $run.exit_code != 0 { print $run.stderr; return ["honeycomb-mcp runs"] }
+  let replies = ($run.stdout | lines | each { from json })
+  let by_id = {|id| $replies | where id == $id | get 0? }
+  let sessions = (do $by_id 3).result
+  [
+    (expect "each request gets one reply, a notification none" ($replies | get id) [1 2 3 4 5 6 null])
+    (expect "initialize answers in the client's protocol version" (do $by_id 1).result.protocolVersion "2025-03-26")
+    (expect "the server offers five tools" ((do $by_id 2).result.tools | get name) [census prune sessions sidebar flower])
+    (expect "only prune can change anything" ((do $by_id 2).result.tools | where not annotations.readOnlyHint | get name) [prune])
+    (expect "the sessions tool returns what `honeycomb sessions --json` prints" [$sessions.isError ($sessions.content.0.text | from json)] [false $expected_sessions])
+    (expect "a missing directory is a tool error" [(do $by_id 4).result.isError ((do $by_id 4).result.content.0.text | str starts-with "no such directory")] [true true])
+    (expect "an unknown tool is a protocol error" (do $by_id 5).error.code (-32602))
+    (expect "an unknown method is a protocol error" (do $by_id 6).error.code (-32601))
+    (expect "a line that is not JSON is a parse error" ($replies | last | get error.code) (-32700))
+  ] | flatten
+}
+
 def section [id: string, kind: string, name: string] {
   {
     id: $id, kind: $kind, v: 2, name: $name, order: 0, sortBy: recency, ascending: false
@@ -71,6 +101,7 @@ def main [
   areas: path # The areas as JSON.
   server?: path # hub/server.nu, to test the hub as well
   http_nu?: path # The http-nu binary that runs it.
+  --mcp: path # mcp.nu, to test the MCP server as well
 ] {
   let script = ($script | path expand)
   let areas = ($areas | path expand)
@@ -217,6 +248,13 @@ def main [
   ] | flatten)
 
   let failures = $failures | append (if $server == null { [] } else { hub-tests $server $http_nu $home })
+
+  let failures = $failures | append (if $mcp == null { [] } else {
+    let expected = (^nu --no-config-file $script sessions --json --config $config --root $root --areas $areas | complete | get stdout | from json)
+    mkdir ($home | path join .config)
+    cp -r $root ($home | path join .config Claude)
+    mcp-tests ($mcp | path expand) $script $areas $home $expected
+  })
 
   if ($failures | is-not-empty) {
     print $"\n($failures | length) failed"

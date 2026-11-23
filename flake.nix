@@ -66,8 +66,8 @@
           );
 
         # `honeycomb sidebar`, `sessions`, `flower` and `hub apply` on a
-        # fixture of Claude's sidebar, and the hub on requests as Tailscale
-        # Serve passes them on.
+        # fixture of Claude's sidebar, the hub on requests as Tailscale
+        # Serve passes them on, and `honeycomb-mcp` on a client's requests.
         runtime =
           pkgs.runCommand "honeycomb-runtime-check"
             {
@@ -76,7 +76,7 @@
             ''
               export HOME="$TMPDIR/home"
               mkdir -p "$HOME"
-              ${pkgs.nushell}/bin/nu --no-config-file ${./runtime/tests.nu} ${./runtime/honeycomb.nu} ${pkgs.writeText "honeycomb-areas.json" (builtins.toJSON honeycomb.areas)} ${./runtime/hub/server.nu} ${lib.getExe pkgs.http-nu}
+              ${pkgs.nushell}/bin/nu --no-config-file ${./runtime/tests.nu} ${./runtime/honeycomb.nu} ${pkgs.writeText "honeycomb-areas.json" (builtins.toJSON honeycomb.areas)} ${./runtime/hub/server.nu} ${lib.getExe pkgs.http-nu} --mcp ${./runtime/mcp.nu}
               touch "$out"
             '';
 

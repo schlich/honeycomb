@@ -11,7 +11,7 @@ This flake holds the model and the tools that keep it:
 | ---------------------- | ----------------------------------------------------------- |
 | `lib`                  | the arithmetic, keys, areas and audit (`nix/default.nix`)   |
 | `lib.census`           | counters for a repository's collections (`nix/census.nix`)  |
-| `packages.honeycomb`   | the `honeycomb` command (`runtime/honeycomb.nu`)            |
+| `packages.honeycomb`   | the `honeycomb` command and its MCP server (`runtime`)      |
 | `overlays.default`     | the same command, built from the consumer's `pkgs`          |
 | `nixosModules.hub`     | the phone's hub on loopback (`runtime/hub`)                 |
 | `checks`               | the arithmetic's tests, the runtime's tests, its own census |
@@ -97,6 +97,19 @@ repository:
   them. It leaves a worktree with uncommitted work, or one luvus says is in
   use.
 - `jj topics` lists the same open topics in a Jujutsu repository.
+
+`honeycomb-mcp` (`runtime/mcp.nu`) offers the same command to agents as an
+MCP server over stdio, so an agent can check the counts before it starts
+another topic. Its five tools are `census`, `prune`, `sessions`, `sidebar` and
+`flower`. Each runs the command in its own process, in the project the client
+opened or in a `directory` the call names. Only `prune` can change anything,
+and only when it is called with `yes`. Writing the sidebar and archiving
+sessions stay in the terminal, since the Claude desktop app has to be closed
+for both. To register it with Claude Code:
+
+```nu
+claude mcp add --scope user honeycomb -- honeycomb-mcp
+```
 
 ## Seven areas
 
