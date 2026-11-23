@@ -1,6 +1,7 @@
 { lib }:
 let
   honeycomb = import ./. { inherit lib; };
+  census = import ./census.nix { inherit lib; };
   inherit (honeycomb)
     hex
     origin
@@ -291,6 +292,54 @@ in
       grown.bigger = 10;
       shrunk.smaller = 8;
       paid.settled = 7;
+    };
+  };
+
+  testTheCentreTakesNoSeatButIsStillCounted = {
+    expr = census.seating { } {
+      "README.md" = "regular";
+      "flake.nix" = "regular";
+      "default.nix" = "regular";
+      ".github" = "directory";
+      ".envrc" = "regular";
+      result = "symlink";
+      node_modules = "directory";
+      den = "directory";
+      hosts = "directory";
+      "notes.md" = "regular";
+    };
+    expected = {
+      members = [
+        "den"
+        "hosts"
+        "notes.md"
+      ];
+      directories = [
+        ".github"
+        "den"
+        "hosts"
+      ];
+    };
+  };
+
+  testARepositoryCanSeatWhatTheCentreLeavesOut = {
+    expr =
+      census.seating
+        {
+          centre = [ ];
+          hiddenButCounted = [ ".config" ];
+        }
+        {
+          "README.md" = "regular";
+          ".config" = "directory";
+          ".envrc" = "regular";
+        };
+    expected = {
+      members = [
+        ".config"
+        "README.md"
+      ];
+      directories = [ ".config" ];
     };
   };
 }

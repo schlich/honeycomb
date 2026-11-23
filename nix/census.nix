@@ -4,7 +4,25 @@
 # { "kind:name" = count; } for `audit`. Each counter covers one kind of
 # collection; a repository merges the ones that apply to it, with its own
 # counts beside them.
+let
+  # What a directory holds for itself rather than for a person to choose
+  # between: what describes it, its manifest and lock, and what a forge or an
+  # agent looks for at that exact path. These are the cell, not members seated
+  # around it, the way home is the centre of the seven areas.
+  centreNames = [
+    "README.md"
+    "AGENTS.md"
+    "CLAUDE.md"
+    "flake.nix"
+    "flake.lock"
+    "default.nix"
+    ".github"
+    ".agents"
+  ];
+in
 rec {
+  centre = centreNames;
+
   # Build output and dependency trees, which `path:` flakes include.
   skipped = [
     "node_modules"
@@ -14,42 +32,55 @@ rec {
     "iwe.log"
   ];
 
-  # Every directory's entries under `root`, as "dir:PATH". Hidden entries
-  # are left out except those named in `hiddenButCounted`.
-  directories =
+  # Sort one directory's entries ({ NAME = TYPE; }, as builtins.readDir gives
+  # them) into the `members` that take a seat and the `directories` to count
+  # in turn. The centre takes no seat, but a directory in it is still counted.
+  # Hidden entries are left out unless they are in the centre or named in
+  # `hiddenButCounted`.
+  seating =
     {
-      root,
-      hiddenButCounted ? [
-        ".agents"
-        ".github"
-      ],
+      centre ? centreNames,
+      hiddenButCounted ? [ ],
     }:
+    entries:
     let
-      counted =
-        name:
+      kept = lib.filterAttrs (
+        name: _:
         !(lib.elem name skipped)
         && !(lib.hasPrefix "result" name)
         && !(lib.hasPrefix "_" name)
         && !(lib.hasSuffix ".egg-info" name)
-        && (!(lib.hasPrefix "." name) || lib.elem name hiddenButCounted);
+        && (!(lib.hasPrefix "." name) || lib.elem name hiddenButCounted || lib.elem name centre)
+      ) entries;
+    in
+    {
+      members = builtins.attrNames (removeAttrs kept centre);
+      directories = builtins.attrNames (lib.filterAttrs (_: type: type == "directory") kept);
+    };
 
+  # Every directory's members under `root`, as "dir:PATH", seated by
+  # `seating`.
+  directories =
+    {
+      root,
+      centre ? centreNames,
+      hiddenButCounted ? [ ],
+    }:
+    let
       walk =
         relative:
         let
-          entries = lib.filterAttrs (name: _: counted name) (
+          seats = seating { inherit centre hiddenButCounted; } (
             builtins.readDir (if relative == "" then root else root + "/${relative}")
           );
           below = name: if relative == "" then name else "${relative}/${name}";
-          children = lib.concatLists (
-            lib.mapAttrsToList (name: type: lib.optionals (type == "directory") (walk (below name))) entries
-          );
         in
         [
           (lib.nameValuePair "dir:${if relative == "" then "." else relative}" (
-            builtins.length (builtins.attrNames entries)
+            builtins.length seats.members
           ))
         ]
-        ++ children;
+        ++ lib.concatMap (name: walk (below name)) seats.directories;
     in
     lib.listToAttrs (walk "");
 

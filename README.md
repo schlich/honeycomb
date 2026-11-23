@@ -213,11 +213,22 @@ hexagons:
 `lib.census` (`nix/census.nix`) counts a repository's collections, each as
 `"kind:name" = count`:
 
-- `directories { root; }` every directory's entries, as `dir:PATH`;
+- `directories { root; }` every directory's members, as `dir:PATH`;
 - `flakeInputs ./flake.lock` the flake's inputs and each input group's, as
   `flake:PATH`;
 - `cells PREFIX tree` each cell's members in a tree of cells;
 - `matching PATTERN FILE` the lines of a file that match.
+
+A directory is a cell too, and what it holds for itself is its centre, not
+a member: what describes it, its manifest and lock, and what a forge or an
+agent looks for at that path (`centre`: `README.md`, `AGENTS.md`,
+`CLAUDE.md`, `flake.nix`, `flake.lock`, `default.nix`, `.github`,
+`.agents`). The centre takes no seat, the way home sits inside the six
+areas, but a directory in it is still counted in turn. Other hidden entries
+are left out. A repository changes either list with
+`directories { root; centre = census.centre ++ [ "LICENSE" ]; }`, or seats a
+hidden entry with `hiddenButCounted`; `seating` shows how one directory's
+entries are sorted.
 
 A repository merges the counts that apply to it and compares them with its
 baseline of debts, using `audit`, `clean`, `report` and `growth`:
