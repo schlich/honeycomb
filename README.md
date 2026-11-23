@@ -12,6 +12,7 @@ This flake holds the model and the tools that keep it:
 | `lib`                  | the arithmetic, keys, areas and audit (`nix/default.nix`)   |
 | `lib.census`           | counters for a repository's collections (`nix/census.nix`)  |
 | `packages.honeycomb`   | the `honeycomb` command (`runtime/honeycomb.nu`)            |
+| `overlays.default`     | the same command, built from the consumer's `pkgs`          |
 | `nixosModules.hub`     | the phone's hub on loopback (`runtime/hub`)                 |
 | `checks`               | the arithmetic's tests, the runtime's tests, its own census |
 

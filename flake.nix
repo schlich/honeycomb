@@ -24,6 +24,11 @@
         default = self.packages.${system}.honeycomb;
       };
 
+      # The command built from the consumer's own package set.
+      overlays.default = final: _: {
+        honeycomb = final.callPackage ./runtime/package.nix { };
+      };
+
       # The phone's hub (runtime/hub), on loopback; publishing it is the
       # host's.
       nixosModules = {
